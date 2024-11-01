@@ -9,7 +9,7 @@ const startServer = async (): Promise<void> => {
 
     const port = process.env.PORT || 8000;
     app.listen(port, () => {
-      console.log(`Server is running at port: http://localhost/${port}`);
+      console.log(`Server is running at port: http://localhost:${port}`);
     });
   } catch (err) {
     console.log("MongoDB connection failed!!!", err);
