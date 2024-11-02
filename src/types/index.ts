@@ -21,7 +21,7 @@ export interface IUser extends Document {
 }
 
 export interface CustomMulterRequest extends Request {
-  files: {
+  files?: {
     image?: Express.Multer.File[]; // Use the field name you defined in multer
   };
 }

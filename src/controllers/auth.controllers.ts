@@ -108,21 +108,48 @@ export async function registerUser(
 // Login User Handler
 export async function loginUser(req: Request, res: Response): Promise<any> {
   try {
-    const { email, password } = req.body;
-    const user = await User.findOne({ email });
+    const { phoneNumber, password } = req.body;
+
+    if (!(phoneNumber || password)) {
+      throw new ApiError(400, "Authentication failed");
+    }
+
+    const user = await User.findOne({
+      $or: [{ phoneNumber }],
+    });
 
     if (!user) {
-      return res.status(401).json({ message: "Invalid email" });
+      throw new ApiError(404, "User does not exit");
     }
 
-    if (user.password !== password) {
-      return res.status(401).json({ message: "Invalid password" });
+    //here we are using user which is instance of found user and not model(User). we are calling method declare in that user.
+    const isPasswordValid = await user.isPasswordCorrect(password);
+
+    if (!isPasswordValid) {
+      throw new ApiError(401, "Invalid user credentials");
     }
 
-    const secretKey = crypto.randomBytes(32).toString("hex");
-    const token = jwt.sign({ userId: user._id }, secretKey);
+    const { accessToken, refreshToken } = await generateAccessAndRefreshTokens(
+      user._id as ObjectId
+    );
 
-    return res.status(200).json({ token });
+    const loginUser = {
+      ...user.toObject(), // Convert to a plain object
+      password: undefined,
+      refreshToken: undefined,
+    };
+
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        {
+          user: loginUser,
+          accessToken,
+          refreshToken,
+        },
+        "User logged in successfully"
+      )
+    );
   } catch (error) {
     console.log("Error logging in", error);
     return res.status(500).json({ message: "Error logging in" });
