@@ -1,12 +1,11 @@
 import { Request, Response } from "express";
 import User from "@src/models/user.model.js";
-import crypto from "crypto";
-import jwt from "jsonwebtoken";
 import { ObjectId } from "mongodb";
 import { ApiError } from "@src/utils/ApiError";
 import { CustomMulterRequest, IUser } from "@src/types/index.js";
 import { uploadOnCloudinary } from "@src/utils/cloudinary";
 import { ApiResponse } from "@src/utils/ApiResponse";
+import { asyncHandler } from "@src/utils/asyncHandler";
 
 const generateAccessAndRefreshTokens = async (userId: ObjectId) => {
   try {
@@ -154,4 +153,33 @@ export async function loginUser(req: Request, res: Response): Promise<any> {
     console.log("Error logging in", error);
     return res.status(500).json({ message: "Error logging in" });
   }
+}
+
+export async function logoutUser(req: Request, res: Response): Promise<any> {
+  try {
+    // Invalidate the user's refresh token in the database
+    await User.findByIdAndUpdate(
+      req.user._id,
+      {
+        $set: {
+          refreshToken: undefined,
+        },
+      },
+      { new: true }
+    );
+
+    // Respond to the client with a success message
+    return res
+      .status(200)
+      .json(new ApiResponse(200, {}, "User logged out successfully"));
+  } catch (error) {
+    console.log("Error logging out user", error);
+    return res.status(500).json({ message: "Error logging out user" });
+  }
+
+  // Note for the client:
+  // In the React Native app, after receiving this response,
+  // you should remove the tokens from MMKV storage like this:
+  // MMKV.removeItem('accessToken');
+  // MMKV.removeItem('refreshToken');
 }
