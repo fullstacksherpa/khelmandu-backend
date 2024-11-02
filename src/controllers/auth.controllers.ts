@@ -28,10 +28,7 @@ const generateAccessAndRefreshTokens = async (userId: ObjectId) => {
 };
 
 // Register User Handler
-export async function registerUser(
-  req: CustomMulterRequest,
-  res: Response
-): Promise<any> {
+export async function registerUser(req: Request, res: Response): Promise<any> {
   try {
     const { email, password, firstName, lastName, phoneNumber } = req.body;
     if (
@@ -49,7 +46,9 @@ export async function registerUser(
       throw new ApiError(409, "User with email or phone number already exists");
     }
     // Check if files and the image array are defined
-    const avatarFiles = req.files?.image;
+    const avatarFiles = (
+      req.files as { [fieldname: string]: Express.Multer.File[] }
+    )?.image;
 
     // Ensure the avatar file is present
     if (!avatarFiles || avatarFiles.length === 0) {

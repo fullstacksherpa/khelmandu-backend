@@ -7,6 +7,9 @@ declare global {
       userId?: Number;
       cleanBody?: any;
       user?: any;
+      files?: {
+        image?: Express.Multer.File[];
+      };
     }
   }
 }
