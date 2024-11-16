@@ -1,4 +1,5 @@
 import {
+  getUser,
   loginUser,
   logoutUser,
   registerUser,
@@ -16,5 +17,7 @@ router.post(
 );
 router.post("/login", loginUser);
 router.post("/logout", verifyJWT, logoutUser);
+
+router.get("/user/:userId", getUser);
 
 export default router;

@@ -7,6 +7,8 @@ const venueSchema = new mongoose.Schema({
   },
   rating: Number,
   image: String,
+  image1: String,
+  image2: String,
   deferLink: String,
   fullLink: String,
   avgRating: Number,

@@ -77,7 +77,7 @@ export async function registerUser(req: Request, res: Response): Promise<any> {
       throw new ApiError(500, "something went wrong while registering user");
     }
 
-    const { accessToken } = await generateAccessAndRefreshTokens(
+    const { accessToken, refreshToken } = await generateAccessAndRefreshTokens(
       user._id as ObjectId
     );
 
@@ -85,7 +85,7 @@ export async function registerUser(req: Request, res: Response): Promise<any> {
       new ApiResponse(
         200,
         {
-          accessToken,
+          token: { accessToken, refreshToken },
           user: {
             email: user.email,
             firstName: user.firstName,
@@ -175,10 +175,20 @@ export async function logoutUser(req: Request, res: Response): Promise<any> {
     console.log("Error logging out user", error);
     return res.status(500).json({ message: "Error logging out user" });
   }
+}
 
-  // Note for the client:
-  // In the React Native app, after receiving this response,
-  // you should remove the tokens from MMKV storage like this:
-  // MMKV.removeItem('accessToken');
-  // MMKV.removeItem('refreshToken');
+export async function getUser(req: Request, res: Response): Promise<any> {
+  try {
+    const { userId } = req.params;
+
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(500).json({ message: "User not found" });
+    }
+
+    return res.status(200).json({ user });
+  } catch (error) {
+    res.status(500).json({ message: "Error fetching the user details" });
+  }
 }

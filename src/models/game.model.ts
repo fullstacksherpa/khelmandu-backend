@@ -1,74 +1,85 @@
 import mongoose, { Schema } from "mongoose";
 
-const gameSchema = new mongoose.Schema({
-  sport: {
-    type: String,
-    required: true,
-  },
-  area: {
-    type: String,
-    required: true,
-  },
-  date: {
-    type: String,
-    required: true,
-  },
-  time: {
-    type: String,
-    required: true,
-  },
-  activityAccess: {
-    type: String,
-    default: "public",
-  },
-  totalPlayers: {
-    type: Number,
-    required: true,
-  },
-  instruction: {
-    type: String,
-  },
-  admin: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "User",
-    required: true,
-  },
-  players: [
-    {
+const gameSchema = new mongoose.Schema(
+  {
+    sport: {
+      type: String,
+      required: true,
+    },
+    area: {
+      type: String,
+      required: true,
+    },
+    date: {
+      type: String,
+      required: true,
+    },
+    time: {
+      type: String,
+      required: true,
+    },
+    activityAccess: {
+      type: String,
+      enum: ["public", "private"],
+      default: "public",
+    },
+    totalPlayers: {
+      type: Number,
+      required: true,
+      min: 1,
+      max: 100,
+    },
+    instruction: {
+      type: String,
+    },
+    admin: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
+      required: true,
     },
-  ],
-  queries: [
-    {
-      question: String,
-      answer: String,
-    },
-  ],
-  requests: [
-    {
-      userId: {
+    players: [
+      {
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",
-        required: true,
       },
-      comment: {
-        type: String,
-      },
+    ],
+    queries: {
+      type: [
+        {
+          question: String,
+          answer: String,
+        },
+      ],
+      default: [],
     },
-  ],
-  isBooked: {
-    type: Boolean,
-    default: false,
+    requests: {
+      type: [
+        {
+          userId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User",
+            required: true,
+          },
+          comment: String,
+        },
+      ],
+      default: [],
+    },
+    isBooked: {
+      type: Boolean,
+      default: false,
+    },
+    matchFull: {
+      type: Boolean,
+      default: false,
+    },
+    courtNumber: {
+      type: String,
+    },
   },
-  matchFull: {
-    type: Boolean,
-    default: false,
-  },
-  courtNumber: {
-    type: String,
-  },
-});
+  { timestamps: true }
+);
 
+gameSchema.index({ sport: 1, area: 1, date: 1 });
 const Game = mongoose.model("Game", gameSchema);
 export default Game;
