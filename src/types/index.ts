@@ -1,25 +1,43 @@
-import { Document, ObjectId, Types } from "mongoose";
+import { Document, Types } from "mongoose";
+import { ObjectId } from "bson";
+
 import mongoose from "mongoose";
 import { Request } from "express";
 
 export interface IUser extends Document {
-  _id: string;
-  email: string;
-  phoneNumber: string;
-  password: string;
-  firstName: string;
-  lastName?: string;
-  image: string;
-  skill?: string;
-  otp?: string;
-  noOfGames: number;
-  playpals: mongoose.Types.ObjectId[] | IUser[]; // Array of ObjectId references to other users
-  sports: string[]; // Array of sports the user plays
-  refreshToken?: string;
-  isPasswordCorrect(password: string): Promise<boolean>;
-  generateAccessToken(): string;
-  generateRefreshToken(): string;
+  _id: ObjectId; // User's unique identifier
+  email: string; // User's email, required
+  phoneNumber: string; // User's phone number, required
+  password: string; // User's hashed password, required
+  username: string; // User's username, required
+  image?: string; // URL of the user's profile image, optional
+  skill?: "beginner" | "intermediate" | "advanced"; // User's skill level, optional
+  noOfGames: number; // Number of games played by the user, default: 0
+  playpals: ObjectId[] | IUser[]; // Array of ObjectId references to other users or IUser objects
+  sports: (
+    | "futsal"
+    | "basketball"
+    | "badminton"
+    | "e-sport"
+    | "cricket"
+    | "tennis"
+  )[]; // Array of sports the user plays
+  refreshToken?: string | null; // Refresh token, optional
+  resetPasswordToken?: string | null; // Token for resetting the password, optional
+  resetPasswordExpires?: Date | null; // Expiry date for the reset password token, optional
+  isEmailVerified: boolean; // Indicates if the user's email is verified, default: false
+  emailVerificationToken?: string | null; // Token for email verification, optional
+  emailVerificationExpires?: Date | null; // Expiry date for the email verification token, optional
+  createdAt?: Date; // Timestamp for when the user was created, optional
+  updatedAt?: Date; // Timestamp for when the user was last updated, optional
+
+  // Instance methods
+  isPasswordCorrect(password: string): Promise<boolean>; // Method to verify the password
+  generateAccessToken(): string; // Method to generate access token
+  generateRefreshToken(): string; // Method to generate refresh token
 }
+
+export type ISafeUser = Omit<IUser, "password" | "refreshToken">;
 
 export interface CustomMulterRequest extends Request {
   files?: {
@@ -30,8 +48,6 @@ export interface CustomMulterRequest extends Request {
 export interface JwtAccessTokenPayload {
   _id: ObjectId; // User's MongoDB ObjectId
   email: string; // User's email
-  username?: string; // Username, if defined
-  fullName?: string; // Full name, if defined
 }
 
 export interface JwtRefreshTokenPayload {

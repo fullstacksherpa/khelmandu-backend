@@ -1,545 +1,218 @@
 import Game from "@src/models/game.model";
-import Venue from "@src/models/venue.model.js";
+import Venue, { IVenue } from "@src/models/venue.model.js";
 import { Request, Response } from "express";
 
-export const venues = [
+export const newVenues = [
   {
-    name: "147 One Four Seven Snooker, Billiards and Pool Sports Academy",
-    rating: 4,
-    deferLink: "https://playo.page.link/ry8TT",
-    fullLink:
-      "https://playo.co/venue/?venueId=4ec5b58f-d58f-4ce1-8c84-2caa63007ecc",
-    avgRating: 4,
-    ratingCount: 3,
-    lat: 12.9341796,
-    lng: 77.6101537,
-    icon: "https://maps.google.com/mapfiles/kml/paddle/4-lv.png",
-    filter_by: ["Pool", "Snooker"],
+    name: "Dhanyentari Futsal",
+    lat: 27.7206791830945,
+    lng: 85.34101033438,
+    phone: 97714009635,
+    defaultSchedule: { openingTime: "09:00", closingTime: "18:00" },
+    customSchedule: new Map([
+      ["Monday", { openingTime: "09:00", closingTime: "18:00" }],
+      ["Tuesday", { openingTime: "10:00", closingTime: "20:00" }],
+    ]),
     sportsAvailable: [
       {
-        id: "10",
-        name: "Badminton",
-        icon: "badminton",
-        price: 500,
+        id: "1",
+        name: "Futsal",
+        defaultPrice: 1800,
         courts: [
           {
-            id: "10",
-            name: "Standard synthetic court 1",
+            name: "Futsal ground",
             number: 1,
-          },
-          {
-            id: "11",
-            name: "Standard synthetic court 2",
-            number: 2,
-          },
-          {
-            id: "12",
-            name: "Standard synthetic court 3",
-            number: 3,
-          },
-        ],
-      },
-
-      {
-        id: "11",
-        name: "Cricket",
-        icon: "cricket",
-        price: 1100,
-        courts: [
-          {
-            id: "10",
-            name: "Full Pitch 1",
-            number: 1,
-          },
-          {
-            id: "11",
-            name: "Full Pitch 2",
-            number: 2,
-          },
-        ],
-      },
-      {
-        id: "12",
-        name: "Tennis",
-        icon: "tennis",
-        price: 900,
-        courts: [
-          {
-            id: "10",
-            name: "Court 1",
-            number: 1,
-          },
-          {
-            id: "11",
-            name: "Court 2",
-            number: 2,
+            timeSlots: [
+              { day: "monday", from: "09:00", to: "17:00", customPrice: 1000 },
+              { day: "monday", from: "17:00", to: "21:00", customPrice: 1500 },
+            ],
           },
         ],
       },
     ],
-    image:
-      "https://playo.gumlet.io/FIGURINEFITNESSINDIRANAGAR/SnookerRoom1652349575145.jpeg?mode=crop&crop=smart&h=200&width=450&q=75",
-    location:
-      "No. 27, Museum Rd, Shanthala Nagar, Ashok Nagar, Bengaluru, Karnataka",
-    address: "AVS Compound, 1st Floor, 1st Cross",
+    images: [
+      "https://res.cloudinary.com/sherpacloudinary/image/upload/v1732252756/venue/wbrkwckcpoz86yy0yx08.jpg",
+      "https://res.cloudinary.com/sherpacloudinary/image/upload/v1732252917/venue/uuad2fxghod95hvoxz1u.jpg",
+      "https://res.cloudinary.com/sherpacloudinary/image/upload/v1732252965/venue/xoxbgrgd6jcdgtl8z8a0.jpg",
+    ],
+    address: "Dhanawantari Marg",
+    iframeLink:
+      "https://www.google.com/maps/embed?pb=!1m14!1m8!1m3!1d14127.650552588697!2d85.3405236!3d27.719983499999998!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x39eb196e42c2727b%3A0xd4f58abde7a271c2!2sDhanyentari%20Futsal!5e0!3m2!1sen!2sca!4v1732253115441!5m2!1sen!2sca",
     bookings: [],
+    amenity: [
+      "6742909a5f62b1291daf9caf",
+      "6742909a5f62b1291daf9cb0",
+      "6742909a5f62b1291daf9cb1",
+      "6742909a5f62b1291daf9cb2",
+      "6742909a5f62b1291daf9cb3",
+    ],
+    lastUpdatedAt: "2024-11-21T10:30:00.000Z",
+
+    subscription: {
+      isSubscribed: false,
+      isPremium: false,
+    },
   },
   {
-    name: "OvalNet Badminton Academy - Sahakar Nagar",
-    rating: 4,
-    deferLink: "https://z34v4.app.goo.gl/MAAX",
-    fullLink:
-      "https://playo.co/venue/?venueId=afbe7186-2f86-4215-8715-4b967f166b09",
-    avgRating: 4,
-    ratingCount: 3,
-    lat: 13.059883,
-    lng: 77.582389,
-    icon: "https://maps.google.com/mapfiles/kml/paddle/4-lv.png",
-    filter_by: ["Pool", "Snooker"],
+    name: "Futsal Arena Boudha",
+    lat: 27.7162254411208,
+    lng: 85.3620239236886,
+    phone: 9779801070700,
+    defaultSchedule: { openingTime: "09:00", closingTime: "18:00" },
+    customSchedule: new Map([
+      ["Monday", { openingTime: "09:00", closingTime: "18:00" }],
+      ["Tuesday", { openingTime: "10:00", closingTime: "20:00" }],
+    ]),
     sportsAvailable: [
       {
-        id: "10",
-        name: "Badminton",
-        icon: "badminton",
-        price: 500,
+        id: "1",
+        name: "Futsal",
+        price: 1800,
         courts: [
           {
-            id: "10",
-            name: "Standard synthetic court 1",
+            name: "Futsal ground",
             number: 1,
-          },
-          {
-            id: "11",
-            name: "Standard synthetic court 2",
-            number: 2,
-          },
-          {
-            id: "12",
-            name: "Standard synthetic court 3",
-            number: 3,
-          },
-        ],
-      },
-
-      {
-        id: "11",
-        name: "Cricket",
-        icon: "cricket",
-        price: 1100,
-        courts: [
-          {
-            id: "10",
-            name: "Full Pitch 1",
-            number: 1,
-          },
-          {
-            id: "11",
-            name: "Full Pitch 2",
-            number: 2,
-          },
-        ],
-      },
-      {
-        id: "12",
-        name: "Tennis",
-        icon: "tennis",
-        price: 900,
-        courts: [
-          {
-            id: "10",
-            name: "Court 1",
-            number: 1,
-          },
-          {
-            id: "11",
-            name: "Court 2",
-            number: 2,
+            timeSlots: [
+              { day: "monday", from: "09:00", to: "17:00", customPrice: 1000 },
+              { day: "monday", from: "17:00", to: "21:00", customPrice: 1500 },
+            ],
           },
         ],
       },
     ],
-    image:
-      "https://playo.gumlet.io/OVALNETBADMINTONACADEMY/OvalNetBadmintonAcademy6.jpg?mode=crop&crop=smart&h=200&width=450&q=75",
-    location:
-      "No. 27, Museum Rd, Shanthala Nagar, Ashok Nagar, Bengaluru, Karnataka",
-    address: "No. 3/1, Kodigehalli Main Road, Adjacent to Cauvery College",
-    bookings: [],
-  },
-  {
-    name: "OvalNet Badminton Academy - Sahakar Nagar",
-    rating: 4,
-    deferLink: "https://z34v4.app.goo.gl/MAAX",
-    fullLink:
-      "https://playo.co/venue/?venueId=afbe7186-2f86-4215-8715-4b967f166b09",
-    avgRating: 4,
-    ratingCount: 3,
-    lat: 13.059883,
-    lng: 77.582389,
-    icon: "https://maps.google.com/mapfiles/kml/paddle/4-lv.png",
-    filter_by: ["Pool", "Snooker"],
-    sportsAvailable: [
-      {
-        id: "10",
-        name: "Badminton",
-        icon: "badminton",
-        price: 500,
-        courts: [
-          {
-            id: "10",
-            name: "Standard synthetic court 1",
-            number: 1,
-          },
-          {
-            id: "11",
-            name: "Standard synthetic court 2",
-            number: 2,
-          },
-          {
-            id: "12",
-            name: "Standard synthetic court 3",
-            number: 3,
-          },
-        ],
-      },
-
-      {
-        id: "11",
-        name: "Cricket",
-        icon: "cricket",
-        price: 1100,
-        courts: [
-          {
-            id: "10",
-            name: "Full Pitch 1",
-            number: 1,
-          },
-          {
-            id: "11",
-            name: "Full Pitch 2",
-            number: 2,
-          },
-        ],
-      },
-      {
-        id: "12",
-        name: "Tennis",
-        icon: "tennis",
-        price: 900,
-        courts: [
-          {
-            id: "10",
-            name: "Court 1",
-            number: 1,
-          },
-          {
-            id: "11",
-            name: "Court 2",
-            number: 2,
-          },
-        ],
-      },
+    images: [
+      "https://res.cloudinary.com/sherpacloudinary/image/upload/v1732255811/venue/hjhp76d25ekiihyb4nil.jpg",
+      "https://res.cloudinary.com/sherpacloudinary/image/upload/v1732255844/venue/vbysxyt3dmd0tbbwz0sj.jpg",
+      "https://res.cloudinary.com/sherpacloudinary/image/upload/v1732255870/venue/yptdmdobyga1u29zhmtd.jpg",
     ],
-    image:
-      "https://playo.gumlet.io/OVALNETBADMINTONACADEMY/OvalNetBadmintonAcademy6.jpg?mode=crop&crop=smart&h=200&width=450&q=75",
-    location:
-      "No. 27, Museum Rd, Shanthala Nagar, Ashok Nagar, Bengaluru, Karnataka",
-    address: "No. 3/1, Kodigehalli Main Road, Adjacent to Cauvery College",
+    address: "Boudha (Near Samatha School)",
+    iframeLink:
+      "https://www.google.com/maps/embed?pb=!1m14!1m8!1m3!1d14128.186029661867!2d85.3620883!3d27.7158503!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x39eb1bd0e441b9d1%3A0x81962eaa6a191e35!2sFutsal%20Arena%20Boudha!5e0!3m2!1sen!2sca!4v1732255973433!5m2!1sen!2sca",
     bookings: [],
-  },
-  {
-    name: "Play Zone - Sahakarnagar (Shree Vayu Badminton Arena)",
-    rating: 4,
-    fullLink:
-      "https://playo.co/venue?venueId=6bb450c0-318b-49e5-b7c0-c02a37d34ef8",
-    deferLink: "https://z34v4.app.goo.gl/4Kqo",
-    avgRating: 4,
-    ratingCount: 3,
-    lat: 13.053750730700056,
-    lng: 77.57626923775621,
-    icon: "https://maps.google.com/mapfiles/kml/paddle/4-lv.png",
-    filter_by: ["Pool", "Snooker"],
-    sportsAvailable: [
-      {
-        id: "10",
-        name: "Badminton",
-        icon: "badminton",
-        price: 500,
-        courts: [
-          {
-            id: "10",
-            name: "Standard synthetic court 1",
-            number: 1,
-          },
-          {
-            id: "11",
-            name: "Standard synthetic court 2",
-            number: 2,
-          },
-          {
-            id: "12",
-            name: "Standard synthetic court 3",
-            number: 3,
-          },
-        ],
-      },
-
-      {
-        id: "11",
-        name: "Cricket",
-        icon: "cricket",
-        price: 1100,
-        courts: [
-          {
-            id: "10",
-            name: "Full Pitch 1",
-            number: 1,
-          },
-          {
-            id: "11",
-            name: "Full Pitch 2",
-            number: 2,
-          },
-        ],
-      },
-      {
-        id: "12",
-        name: "Tennis",
-        icon: "tennis",
-        price: 900,
-        courts: [
-          {
-            id: "10",
-            name: "Court 1",
-            number: 1,
-          },
-          {
-            id: "11",
-            name: "Court 2",
-            number: 2,
-          },
-        ],
-      },
+    amenity: [
+      "6742909a5f62b1291daf9caf",
+      "6742909a5f62b1291daf9cb0",
+      "6742909a5f62b1291daf9cb1",
+      "6742909a5f62b1291daf9cb2",
+      "6742909a5f62b1291daf9cb3",
     ],
-    image:
-      "https://playo.gumlet.io/PLAYZONESAHAKARNAGARSHREEVAYUBADMINTONARENA20231206074712995440/PlayZoneSahakarnagarShreeVayuBadmintonArena1701880566748.jpeg?mode=crop&crop=smart&h=200&width=450&q=75",
-    location:
-      "No. 27, Museum Rd, Shanthala Nagar, Ashok Nagar, Bengaluru, Karnataka",
-    address:
-      "Sahakar Nagar road, Adjacent to AMCO layout and Tata Nagar, Hebbal",
-    bookings: [],
-  },
-  {
-    name: "VIN Badminton",
-    rating: 4,
-    deferLink: "https://z34v4.app.goo.gl/RTF4",
-    fullLink:
-      "https://playo.co/venue/?venueId=37f3675b-dfd2-4f30-8506-a3883abef902",
-    avgRating: 4,
-    ratingCount: 3,
-    lat: 13.071497063988476,
-    lng: 77.58706385591489,
-    icon: "https://maps.google.com/mapfiles/kml/paddle/4-lv.png",
-    filter_by: ["Pool", "Snooker"],
-    sportsAvailable: [
-      {
-        id: "10",
-        name: "Badminton",
-        icon: "badminton",
-        price: 500,
-        courts: [
-          {
-            id: "10",
-            name: "Standard synthetic court 1",
-            number: 1,
-          },
-          {
-            id: "11",
-            name: "Standard synthetic court 2",
-            number: 2,
-          },
-          {
-            id: "12",
-            name: "Standard synthetic court 3",
-            number: 3,
-          },
-        ],
-      },
+    lastUpdatedAt: "2024-11-21T10:30:00.000Z",
 
-      {
-        id: "11",
-        name: "Cricket",
-        icon: "cricket",
-        price: 1100,
-        courts: [
-          {
-            id: "10",
-            name: "Full Pitch 1",
-            number: 1,
-          },
-          {
-            id: "11",
-            name: "Full Pitch 2",
-            number: 2,
-          },
-        ],
-      },
-      {
-        id: "12",
-        name: "Tennis",
-        icon: "tennis",
-        price: 900,
-        courts: [
-          {
-            id: "10",
-            name: "Court 1",
-            number: 1,
-          },
-          {
-            id: "11",
-            name: "Court 2",
-            number: 2,
-          },
-        ],
-      },
-    ],
-    image:
-      "https://playo.gumlet.io/VINI5BADMINTONARENA20240226042742110513/Vini5BadmintonArena1709376498394.jpg?mode=crop&crop=smart&h=200&width=450&q=75",
-    location:
-      "No. 27, Museum Rd, Shanthala Nagar, Ashok Nagar, Bengaluru, Karnataka",
-    address: "Vini5 badminton arena, 5th main road, Canara bank layout",
-    bookings: [],
+    subscription: {
+      isSubscribed: false,
+      isPremium: false,
+    },
   },
-  {
-    name: "Serve & Smash Badminton Academy",
-    rating: 4,
-    fullLink:
-      "https://playo.co/venue?venueId=a0c6ceb4-d09b-4fcf-bafd-6c949a55590c",
-    deferLink: "https://z34v4.app.goo.gl/3k9a",
-    avgRating: 4,
-    ratingCount: 3,
-    lat: 13.045735,
-    lng: 77.572929,
-    icon: "https://maps.google.com/mapfiles/kml/paddle/4-lv.png",
-    filter_by: ["Pool", "Snooker"],
-    sportsAvailable: [
-      {
-        id: "10",
-        name: "Badminton",
-        icon: "badminton",
-        price: 500,
-        courts: [
-          {
-            id: "10",
-            name: "Standard synthetic court 1",
-            number: 1,
-          },
-          {
-            id: "11",
-            name: "Standard synthetic court 2",
-            number: 2,
-          },
-          {
-            id: "12",
-            name: "Standard synthetic court 3",
-            number: 3,
-          },
-        ],
-      },
-
-      {
-        id: "11",
-        name: "Cricket",
-        icon: "cricket",
-        price: 1100,
-        courts: [
-          {
-            id: "10",
-            name: "Full Pitch 1",
-            number: 1,
-          },
-          {
-            id: "11",
-            name: "Full Pitch 2",
-            number: 2,
-          },
-        ],
-      },
-      {
-        id: "12",
-        name: "Tennis",
-        icon: "tennis",
-        price: 900,
-        courts: [
-          {
-            id: "10",
-            name: "Court 1",
-            number: 1,
-          },
-          {
-            id: "11",
-            name: "Court 2",
-            number: 2,
-          },
-        ],
-      },
-    ],
-    image:
-      "https://playo.gumlet.io/SERVESMASH20191003055000886885/ServeSmash0.jpeg?mode=crop&crop=smart&h=200&width=450&q=75",
-    location:
-      "No. 27, Museum Rd, Shanthala Nagar, Ashok Nagar, Bengaluru, Karnataka",
-    address: "1st Cross, RMV 2nd Stage, Nagashettihalli bangalore",
-    bookings: [],
-  },
-  // Add more venues as need
 ];
 
-export async function getVenues(req: Request, res: Response): Promise<any> {
+export async function getVenues(req: Request, res: Response): Promise<void> {
   try {
-    const venues = await Venue.find({});
-    console.log("ven", venues);
-    res.status(200).json(venues);
+    // Fetch venues with populated fields for bookings
+    const venues = await Venue.find({})
+      .populate("bookings.user", "username email") // Populate user with specific fields
+      .populate("bookings.game", "date time"); // Populate game with specific fields
+
+    // Format the venues
+    const formattedVenues = venues.map((venue) => {
+      const venueObject = venue.toObject() as Omit<IVenue, "_id"> & {
+        _id: string;
+      };
+
+      // Safeguard for bookings being undefined or null
+      const formattedBookings = (venueObject.bookings ?? []).map(
+        (booking: any) => ({
+          ...booking,
+          user:
+            booking.user && typeof booking.user === "object"
+              ? {
+                  _id: booking.user._id.toString(),
+                  username: booking.user.username,
+                  email: booking.user.email,
+                }
+              : null,
+          game:
+            booking.game && typeof booking.game === "object"
+              ? {
+                  _id: booking.game._id.toString(),
+                  date: booking.game.date,
+                  time: booking.game.time,
+                }
+              : null,
+        })
+      );
+
+      return {
+        ...venueObject,
+        _id: venueObject._id.toString(), // Ensure _id is string
+        bookings: formattedBookings, // Include formatted bookings
+      };
+    });
+
+    res.status(200).json(formattedVenues);
   } catch (error) {
-    console.error(error);
+    console.error("Error fetching venues:", error);
     res.status(500).json({ message: "Failed to fetch venues" });
   }
 }
 
-export async function bookVenue(req: Request, res: Response): Promise<any> {
+export async function bookVenue(req: Request, res: Response): Promise<void> {
   const { courtNumber, date, time, userId, name, game } = req.body;
 
-  console.log("game", game);
-
   try {
-    const venue = await Venue.findOne({ name: name });
+    // Find the venue by name
+    const venue = await Venue.findOne({ name });
     if (!venue) {
-      return res.status(404).json({ message: "Venue not found" });
+      res.status(404).json({ message: "Venue not found" });
+      return;
     }
 
-    // console.log('Venue', venue);
     // Check for booking conflicts
-    const bookingConflict =
-      venue.bookings &&
-      venue.bookings.find(
-        (booking) =>
-          booking.courtNumber === courtNumber &&
-          booking.date === date &&
-          booking.time === time
-      );
+    const bookingConflict = venue.bookings.some(
+      (booking) =>
+        booking.courtNumber === courtNumber &&
+        booking.date === date &&
+        booking.time === time
+    );
     if (bookingConflict) {
-      return res.status(400).json({ message: "Slot already booked" });
+      res.status(400).json({ message: "Slot already booked" });
+      return;
     }
-    // Add new booking
-    venue.bookings.push({ courtNumber, date, time, user: userId, game });
 
+    // Validate game (optional: only if game is provided)
+    if (game) {
+      const gameExists = await Game.findById(game);
+      if (!gameExists) {
+        res.status(404).json({ message: "Game not found" });
+        return;
+      }
+    }
+
+    // Add new booking
+    venue.bookings.push({
+      courtNumber,
+      date,
+      time,
+      user: userId, // Ensure user ID is ObjectId
+      game: game || undefined,
+    });
+
+    // Save the updated venue
     await venue.save();
 
-    await Game.findByIdAndUpdate(game, {
-      isBooked: true,
-      courtNumber: courtNumber,
+    // Update game booking status if provided
+    if (game) {
+      await Game.findByIdAndUpdate(game, {
+        isBooked: true,
+        courtNumber,
+      });
+    }
+
+    res.status(200).json({
+      message: "Booking successful",
+      venue,
     });
-    res.status(200).json({ message: "Booking successful", venue });
   } catch (error) {
-    console.error(error);
+    console.error("Error in booking venue:", error);
     res.status(500).json({ message: "Server error" });
   }
 }

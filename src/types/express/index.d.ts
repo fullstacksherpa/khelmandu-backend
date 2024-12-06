@@ -6,6 +6,7 @@ declare global {
     export interface Request {
       userId?: Number;
       cleanBody?: any;
+      body?: any;
       user?: any;
       files?: {
         image?: Express.Multer.File[];

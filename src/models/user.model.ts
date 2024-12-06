@@ -2,9 +2,8 @@ import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import "dotenv/config";
-import { IUser } from "@src/types";
 
-const userSchema = new mongoose.Schema<IUser>(
+const userSchema = new mongoose.Schema(
   {
     email: {
       type: String,
@@ -13,32 +12,31 @@ const userSchema = new mongoose.Schema<IUser>(
       lowercase: true,
       trim: true,
       index: true,
+      match: [/\S+@\S+\.\S+/, "Please provide a valid email address"], // Email validation
     },
     phoneNumber: {
       type: String,
       required: true,
       unique: true,
       trim: true,
+      match: [/^\d{10}$/, "Phone number must be exactly 10 digits"], // 10 digits validation
     },
     password: {
       type: String,
       required: [true, "password is required"],
     },
-    firstName: {
+    username: {
       type: String,
       required: true,
-    },
-    lastName: {
-      type: String,
     },
     image: {
       type: String, // URL to the user's profile image
-      required: true,
+      match: [/^https?:\/\/.*/, "Invalid image URL"], // URL validation
     },
     skill: {
       type: String,
+      enum: ["beginner", "intermediate", "advanced"],
     },
-    otp: String,
     noOfGames: {
       type: Number,
       default: 0,
@@ -52,8 +50,21 @@ const userSchema = new mongoose.Schema<IUser>(
     sports: [
       {
         type: String, // Array of sports the user plays
+        enum: [
+          "futsal",
+          "basketball",
+          "badminton",
+          "e-sport",
+          "cricket",
+          "tennis",
+        ],
       },
     ],
+    resetPasswordToken: { type: String, default: null },
+    resetPasswordExpires: { type: Date, default: null },
+    isEmailVerified: { type: Boolean, default: false },
+    emailVerificationToken: { type: String, default: null },
+    emailVerificationExpires: { type: Date, default: null },
     refreshToken: {
       type: String,
     },
@@ -83,8 +94,6 @@ userSchema.methods.generateAccessToken = function () {
     {
       _id: this._id,
       email: this.email,
-      username: this.username,
-      fullName: this.fullName,
     },
     secret,
     {

@@ -148,18 +148,23 @@ export async function gameRequest(req: Request, res: Response): Promise<any> {
     const { userId, comment } = req.body; // Assuming the userId and comment are sent in the request body
     const { gameId } = req.params;
 
+    // Check if userId is provided
+    if (!userId) {
+      return res.status(400).json({ message: "UserId is required" });
+    }
+
     // Validate if userId is a valid ObjectId format
     if (!mongoose.Types.ObjectId.isValid(userId)) {
       return res.status(400).json({ message: "Invalid userId format" });
     }
 
-    if (!userId) {
-      return res.status(400).json({ message: "UserId is required" });
+    // Validate if gameId is valid
+    if (!mongoose.Types.ObjectId.isValid(gameId)) {
+      return res.status(400).json({ message: "Invalid gameId format" });
     }
 
     // Find the game by ID
-    const game = await Game.findOne({ _id: gameId });
-
+    const game = await Game.findById(gameId);
     if (!game) {
       return res.status(404).json({ message: "Game not found" });
     }
@@ -172,24 +177,22 @@ export async function gameRequest(req: Request, res: Response): Promise<any> {
       return res.status(400).json({ message: "Request already sent" });
     }
 
-    // If no comment is provided, default to an empty string
-    const commentToSave = comment || "";
-
     // Add the user's ID and comment (or empty string) to the requests array
-    game.requests.push({ userId, comment: commentToSave });
+    game.requests.push({ userId, comment: comment || "" });
 
     // Save the updated game document
-    await game.save();
+    const updatedGame = await game.save();
 
-    res.status(200).json({ message: "Request sent successfully" });
-  } catch (err) {
-    console.error("Error occurred while sending request:", err);
+    res
+      .status(200)
+      .json({ message: "Request sent successfully", game: updatedGame });
+  } catch (error) {
+    console.error("Error occurred while sending request:");
     res
       .status(500)
       .json({ message: "An error occurred while processing your request" });
   }
 }
-
 interface IGameRequest {
   userId: IUserPopulate; // Ensure userId is of type IUserPopulate
   comment: string;

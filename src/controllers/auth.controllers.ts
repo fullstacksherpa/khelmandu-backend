@@ -1,11 +1,15 @@
 import { Request, Response } from "express";
 import User from "@src/models/user.model.js";
 import { ObjectId } from "mongodb";
+import crypto from "crypto";
 import { ApiError } from "@src/utils/ApiError";
-import { CustomMulterRequest, IUser } from "@src/types/index.js";
-import { uploadOnCloudinary } from "@src/utils/cloudinary";
+import { ISafeUser, IUser } from "@src/types/index.js";
+import jwt from "jsonwebtoken";
+
 import { ApiResponse } from "@src/utils/ApiResponse";
-import { asyncHandler } from "@src/utils/asyncHandler";
+import mongoose from "mongoose";
+import { uploadOnCloudinary } from "@src/utils/cloudinary";
+import { sendEmail } from "@src/utils/emailService";
 
 const generateAccessAndRefreshTokens = async (userId: ObjectId) => {
   try {
@@ -30,77 +34,125 @@ const generateAccessAndRefreshTokens = async (userId: ObjectId) => {
 // Register User Handler
 export async function registerUser(req: Request, res: Response): Promise<any> {
   try {
-    const { email, password, firstName, lastName, phoneNumber } = req.body;
+    const { email, password, username, phoneNumber } = req.body;
+    console.log("Request body:", req.body);
+
+    // Validate input fields
     if (
-      [email, password, firstName, lastName, phoneNumber].some(
-        (field) => field?.trim() === ""
+      [email, password, username, phoneNumber].some(
+        (field) => !field || field.trim() === ""
       )
     ) {
-      throw new ApiError(400, "All Fields are required");
+      throw new ApiError(400, "All fields are required");
     }
 
+    // Check if user already exists
     const existedUser = await User.findOne({
       $or: [{ phoneNumber }, { email }],
     });
     if (existedUser) {
       throw new ApiError(409, "User with email or phone number already exists");
     }
-    // Check if files and the image array are defined
-    const avatarFiles = (
-      req.files as { [fieldname: string]: Express.Multer.File[] }
-    )?.image;
 
-    // Ensure the avatar file is present
-    if (!avatarFiles || avatarFiles.length === 0) {
-      throw new ApiError(400, "Avatar file is required");
-    }
+    // Set default profile picture
+    const profilePic =
+      "https://res.cloudinary.com/sherpacloudinary/image/upload/v1732843766/userProfile/ofj6tvvwgkahcvr4x4xs.webp";
 
-    const avatarLocalPath = avatarFiles[0].path;
-    const image = await uploadOnCloudinary(avatarLocalPath);
-    if (!image) {
-      throw new ApiError(409, "avatar file is required");
-    }
-
-    const user = (await User.create({
+    // Create new user
+    const user = await User.create({
       email,
       password,
-      firstName,
-      lastName,
+      username,
       phoneNumber,
-      image: image.url,
-    })) as IUser;
+      image: profilePic,
+    });
 
-    const createdUser: IUser = await User.findById(user._id).select(
+    // Generate tokens
+    const { accessToken, refreshToken } = await generateAccessAndRefreshTokens(
+      user._id
+    );
+
+    //generate email verification token
+    const verificationToken = crypto.randomBytes(32).toString("hex");
+    user.emailVerificationToken = verificationToken;
+    user.emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+    // Save refresh token to the database
+    user.refreshToken = refreshToken;
+    await user.save();
+
+    //send verification email
+    const verificationLink = `${process.env.FRONTEND_URL}/verify-email?token=${verificationToken}`;
+    await sendEmail(
+      user.email,
+      "Khelmandu | email verification Links",
+      `
+    <h4>Hi ${user.username},</h4>
+<p>We hope you're enjoying your experience with Khelmandu! We're thrilled to have you as part of our community. To ensure your account is secure and fully activated, please take a moment to verify your email address.</p>
+<p>Click the link below to verify your email:</p>
+<a href="${verificationLink}">Verify Email</a>
+<p>If you didn't request this, don't worry—just ignore this email, and your account will remain unchanged.</p>
+<p>Thank you for choosing [YourAppName]. We're here to help if you have any questions or need assistance.</p>
+<p>Best regards,</p>
+<p>Khelmandu Team</p>
+  `
+    );
+
+    // Fetch created user without sensitive fields
+    const createdUser: ISafeUser = await User.findById(user._id).select(
       "-password -refreshToken"
     );
     if (!createdUser) {
-      throw new ApiError(500, "something went wrong while registering user");
+      throw new ApiError(500, "Something went wrong while registering user");
     }
 
-    const { accessToken, refreshToken } = await generateAccessAndRefreshTokens(
-      user._id as ObjectId
-    );
-
-    return res.status(200).json(
+    // Send response
+    return res.status(201).json(
       new ApiResponse(
-        200,
+        201,
         {
           token: { accessToken, refreshToken },
           user: {
+            userId: user._id.toString(),
             email: user.email,
-            firstName: user.firstName,
-            lastName: user.lastName,
+            username: user.username,
             phoneNumber: user.phoneNumber,
             image: user.image,
           },
         },
-        "User logged in successfully"
+        "User registered successfully. Please check your email to verify your account"
       )
     );
   } catch (error) {
-    console.log("Error creating user", error);
+    console.error("Error registering user:", error);
     return res.status(500).json({ error: "Internal server error" });
   }
+}
+
+export async function verifyEmail(req: Request, res: Response): Promise<any> {
+  const { token } = req.query;
+
+  if (!token) {
+    return res.status(400).json({ message: "Verification token is required" });
+  }
+
+  const user = (await User.findOne({
+    emailVerificationToken: token,
+    emailVerificationExpires: { $gt: new Date() }, // Ensure token hasn't expired
+  })) as IUser | null;
+
+  if (!user) {
+    return res
+      .status(400)
+      .json({ message: "Invalid or expired verification token" });
+  }
+
+  user.isEmailVerified = true;
+  user.emailVerificationToken = null;
+  user.emailVerificationExpires = null;
+
+  await user.save();
+
+  res.status(200).json({ message: "Email successfully verified" });
 }
 
 // Login User Handler
@@ -108,19 +160,18 @@ export async function loginUser(req: Request, res: Response): Promise<any> {
   try {
     const { phoneNumber, password } = req.body;
 
-    if (!(phoneNumber || password)) {
+    if (!phoneNumber || !password) {
       throw new ApiError(400, "Authentication failed");
     }
 
-    const user = await User.findOne({
+    const user = (await User.findOne({
       $or: [{ phoneNumber }],
-    });
+    })) as IUser;
 
     if (!user) {
-      throw new ApiError(404, "User does not exit");
+      throw new ApiError(404, "User does not exist");
     }
 
-    //here we are using user which is instance of found user and not model(User). we are calling method declare in that user.
     const isPasswordValid = await user.isPasswordCorrect(password);
 
     if (!isPasswordValid) {
@@ -128,22 +179,15 @@ export async function loginUser(req: Request, res: Response): Promise<any> {
     }
 
     const { accessToken, refreshToken } = await generateAccessAndRefreshTokens(
-      user._id as ObjectId
+      user._id
     );
-
-    const loginUser = {
-      ...user.toObject(), // Convert to a plain object
-      password: undefined,
-      refreshToken: undefined,
-    };
 
     return res.status(200).json(
       new ApiResponse(
         200,
         {
-          user: loginUser,
-          accessToken,
-          refreshToken,
+          token: { accessToken, refreshToken },
+          userId: user._id.toString(), // Use directly without creating a new object
         },
         "User logged in successfully"
       )
@@ -156,24 +200,86 @@ export async function loginUser(req: Request, res: Response): Promise<any> {
 
 export async function logoutUser(req: Request, res: Response): Promise<any> {
   try {
-    // Invalidate the user's refresh token in the database
-    await User.findByIdAndUpdate(
-      req.user._id,
-      {
-        $set: {
-          refreshToken: undefined,
-        },
-      },
-      { new: true }
+    const { userId } = req.body; // Assuming userId is sent in the request body
+
+    if (!userId) {
+      throw new ApiError(400, "User ID is required for logout");
+    }
+
+    // Validate if the userId is a valid ObjectId
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      throw new ApiError(400, "Invalid User ID format");
+    }
+
+    // Update the refreshToken field directly without triggering pre("save")
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { $unset: { refreshToken: "" } }, // Unset the refreshToken field
+      { new: true } // Return the updated document
     );
 
-    // Respond to the client with a success message
+    if (!user) {
+      throw new ApiError(404, "User not found");
+    }
+
+    // Respond with a success message
     return res
       .status(200)
-      .json(new ApiResponse(200, {}, "User logged out successfully"));
+      .json(new ApiResponse(200, null, "User logged out successfully"));
   } catch (error) {
-    console.log("Error logging out user", error);
-    return res.status(500).json({ message: "Error logging out user" });
+    console.error("Error logging out:", error);
+    return res.status(500).json({ message: "Error logging out" });
+  }
+}
+
+export async function refreshToken(req: Request, res: Response): Promise<any> {
+  const { refreshToken } = req.body;
+
+  if (!refreshToken) {
+    return res.status(400).json({ error: "Refresh token is required" });
+  }
+
+  try {
+    // Verify the refresh token
+    const decoded = jwt.verify(
+      refreshToken,
+      process.env.REFRESH_TOKEN_SECRET!
+    ) as { _id: string };
+    console.log(decoded);
+    const user = (await User.findById(decoded._id)) as IUser;
+    console.log(user);
+
+    if (!user || user.refreshToken !== refreshToken) {
+      return res.status(403).json({ error: "Invalid refresh token" });
+    }
+
+    // Check if the refresh token is near expiry
+    const tokenExp = (jwt.decode(refreshToken) as { exp: number }).exp * 1000;
+    const timeLeft = tokenExp - Date.now();
+
+    let newRefreshToken = refreshToken; // Default to the current token
+    if (timeLeft < 5 * 60 * 1000) {
+      // Less than 5 minutes remaining
+      newRefreshToken = user.generateRefreshToken();
+
+      user.refreshToken = newRefreshToken; // Update with new refresh token
+      await user.save();
+    }
+
+    // Generate a new access token
+    const accessToken = user.generateAccessToken();
+
+    return res.status(200).json({
+      accessToken,
+      refreshToken: newRefreshToken,
+    });
+  } catch (error) {
+    if ((error as Error).name === "TokenExpiredError") {
+      return res
+        .status(403)
+        .json({ error: "Refresh token expired. Please log in again." });
+    }
+    return res.status(403).json({ error: "Invalid or expired refresh token" });
   }
 }
 
@@ -191,4 +297,123 @@ export async function getUser(req: Request, res: Response): Promise<any> {
   } catch (error) {
     res.status(500).json({ message: "Error fetching the user details" });
   }
+}
+
+export async function uploadProfilePic(
+  req: Request,
+  res: Response
+): Promise<any> {
+  try {
+    if (!req.user) {
+      throw new ApiError(401, "Unauthorized request");
+    }
+
+    const userId = req.user._id; // Extract userId from the verified JWT
+
+    if (!req.file) {
+      throw new ApiError(400, "No file uploaded");
+    }
+
+    // Upload the image to Cloudinary
+    const localFilePath = req.file.path; // Path of the uploaded file
+    const uploadResult = await uploadOnCloudinary(localFilePath);
+
+    if (!uploadResult) {
+      throw new ApiError(500, "Failed to upload image to Cloudinary");
+    }
+
+    // Update the user's profile picture URL in the database
+    const updatedUser: ISafeUser = await User.findByIdAndUpdate(
+      userId,
+      { image: uploadResult.secure_url },
+      { new: true } // Return the updated document
+    ).select("-password -refreshToken"); // Exclude sensitive fields
+
+    if (!updatedUser) {
+      throw new ApiError(404, "User not found");
+    }
+
+    return res.status(200).json({
+      message: "Profile picture updated successfully",
+      user: updatedUser, // Send the safe user object
+    });
+  } catch (error) {
+    console.error(
+      `Error uploading profile picture for user ${req.user?._id || "unknown"}:`,
+      error
+    );
+
+    // Handle known and unknown errors
+    if (error instanceof ApiError) {
+      return res.status(error.statusCode).json({ error: error.message });
+    }
+
+    return res.status(500).json({ error: "Internal server error" });
+  }
+}
+
+export async function requestPasswordReset(
+  req: Request,
+  res: Response
+): Promise<any> {
+  const { email } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ message: "Email is required" });
+  }
+
+  const user = await User.findOne({ email });
+  if (!user) {
+    return res.status(404).json({ message: "User not found" });
+  }
+
+  // Generate a reset token
+  const resetToken = crypto.randomBytes(32).toString("hex");
+  user.resetPasswordToken = resetToken;
+  user.resetPasswordExpires = new Date(Date.now() + 15 * 60 * 1000); // Token valid for 15 minutes
+
+  await user.save();
+
+  // Send the token via email
+  const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
+  await sendEmail(
+    user.email,
+    "Password Reset Link",
+    `
+    <h4>Hi ${user.username},</h4>
+    <p>You requested to reset your password. Click the link below to reset it:</p>
+    <a href="${resetLink}">Reset Password</a>
+    <p>If you didn't request this, please ignore this email.</p>
+  `
+  );
+
+  res.status(200).json({ message: "Password reset link sent to your email" });
+}
+
+export async function resetPassword(req: Request, res: Response): Promise<any> {
+  const { token, newPassword } = req.body;
+
+  if (!token || !newPassword) {
+    return res
+      .status(400)
+      .json({ message: "Token and new password are required" });
+  }
+
+  const user = (await User.findOne({
+    resetPasswordToken: token,
+    resetPasswordExpires: { $gt: new Date() },
+  })) as IUser | null;
+
+  if (!user) {
+    return res.status(400).json({ message: "Invalid or expired token" });
+  }
+
+  // Hash and update the password
+  user.password = newPassword;
+  user.resetPasswordToken = null; // Clear the reset token
+  user.resetPasswordExpires = null;
+
+  await user.save();
+
+  res.status(200).json({ message: "Password has been reset successfully" });
 }

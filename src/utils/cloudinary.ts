@@ -5,6 +5,7 @@ cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME as string,
   api_key: process.env.CLOUDINARY_API_KEY as string,
   api_secret: process.env.CLOUDINARY_API_SECRET as string,
+  secure: true,
 });
 
 const uploadOnCloudinary = async (
@@ -15,8 +16,10 @@ const uploadOnCloudinary = async (
 
     // Upload the file to Cloudinary
     const response = await cloudinary.uploader.upload(localFilePath, {
-      resource_type: "auto",
-    });
+      asset_folder: "userProfile",
+      resource_type: "image",
+      secure: true,
+    }); //enforces HTTPS for URL
 
     // Delete the local file after successful upload
     fs.unlinkSync(localFilePath);
