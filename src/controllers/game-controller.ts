@@ -1,231 +1,432 @@
 import Game from "@src/models/game.model.js";
 import { Request, Response } from "express";
-import {
-  CustomRequestWithGameId,
-  IUser,
-  IFormattedGame,
-} from "@src/types/index.js";
+import { IGame, IUser } from "@src/types/index.js";
 import moment from "moment";
 import mongoose from "mongoose";
+import { z } from "zod";
+import { ApiError } from "@src/utils/ApiError";
+import Venue, { IVenue } from "@src/models/venue.model";
+
+interface IPopulatedVenue {
+  _id: string;
+  name: string;
+  phone: string;
+  address?: string; // Add any other fields you populate
+}
+
+//  "6:00 AM", "8:00 AM", "21, July"
+const convertToDatabaseFormat = (
+  startTime: string,
+  endTime: string,
+  date: string
+) => {
+  // Validate and parse the date
+  const parsedDate = moment(date, "DD, MMMM", true); // Expecting "21, July"
+
+  if (!parsedDate.isValid()) {
+    throw new Error("Invalid date format. Expected format: '21, July'.");
+  }
+
+  // Combine date with time
+  const startDateTime = moment(
+    `${parsedDate.format("YYYY-MM-DD")} ${startTime}`,
+    "YYYY-MM-DD h:mm A"
+  );
+  const endDateTime = moment(
+    `${parsedDate.format("YYYY-MM-DD")} ${endTime}`,
+    "YYYY-MM-DD h:mm A"
+  );
+
+  // Validate times
+  if (!startDateTime.isValid() || !endDateTime.isValid()) {
+    throw new Error("Invalid time format.");
+  }
+
+  if (endDateTime.isSameOrBefore(startDateTime)) {
+    throw new Error("End time must be after start time.");
+  }
+
+  // Convert to JavaScript Date for database compatibility
+  return { startTime: startDateTime.toDate(), endTime: endDateTime.toDate() };
+};
+
+// Define the request body schema
+const createGameSchema = z.object({
+  sport: z.string(),
+  venueId: z.string(),
+  gameStartTime: z.string(),
+  gameEndTime: z.string(),
+  date: z.string(),
+  visibility: z.enum(["public", "private"]).optional().default("public"),
+  maxPlayers: z.number().min(1).max(50),
+  instruction: z.string().max(600).optional().default(""),
+});
 
 export async function createGame(req: Request, res: Response): Promise<void> {
   try {
-    const { sport, area, date, time, admin, totalPlayers } = req.body;
-
-    const newGame = new Game({
+    // Parse and validate the request body
+    const {
       sport,
-      area,
+      venueId,
+      gameStartTime,
+      gameEndTime,
       date,
-      time,
+      visibility,
+      maxPlayers,
+      instruction,
+    } = createGameSchema.parse(req.body);
+
+    // Convert user input into database-compatible format
+    const { startTime, endTime } = convertToDatabaseFormat(
+      gameStartTime,
+      gameEndTime,
+      date
+    );
+
+    // Ensure the admin user is attached to the request
+    if (!req.user) {
+      throw new ApiError(401, "Unauthorized: User not found");
+    }
+    const admin = req.user._id;
+
+    // Find the venue
+    const venue = await Venue.findById(venueId);
+    if (!venue) {
+      res.status(404).json({ success: false, message: "Venue not found" });
+      return;
+    }
+
+    // Create the new game
+    const game = new Game({
+      sport,
+      startTime,
+      endTime,
+      visibility,
+      maxPlayers,
+      instruction: instruction || "",
       admin,
-      totalPlayers,
-      players: [admin],
+      venue: venue?._id,
+      location: {
+        type: "Point",
+        coordinates: [venue.lng, venue.lat], // Assign venue's coordinates
+      },
+      status: "active",
+      isBooked: false,
+      matchFull: false,
     });
 
-    const savedGame = await newGame.save();
-    res.status(200).json(savedGame);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Failed to create game" });
+    // Save to the database
+    await game.save();
+
+    // Send the response
+    res.status(201).json({
+      success: true,
+      message: "Game created successfully",
+      game,
+    });
+  } catch (error) {
+    if (error instanceof Error) {
+      console.error("Error creating game:", error.message);
+      res.status(500).json({
+        success: false,
+        message: error.message || "Internal Server Error",
+      });
+    } else {
+      console.error("Unknown error:", error);
+      res.status(500).json({
+        success: false,
+        message: "An unexpected error occurred",
+      });
+    }
   }
 }
 
+//GET /games?page=2&limit=5&venueId=603c72efc0b9ae5f01d0ab20
+
 export async function getGame(req: Request, res: Response): Promise<void> {
   try {
-    // Find games and populate fields with type assertions
-    const games = await Game.find({})
-      .populate<{ admin: IUser }>("admin")
-      .populate<{ players: IUser[] }>("players", "image firstName lastName")
+    // Pagination query parameters
+    const page = parseInt(req.query.page as string) || 1; // Default page 1
+    const limit = parseInt(req.query.limit as string) || 10; // Default 10 games per page
+    const { sport, venueId } = req.query;
+
+    // Calculate skip value for pagination
+    const skip = (page - 1) * limit;
+
+    // Current date and time for filtering
+    const currentDateTime = moment();
+
+    // Build dynamic filters
+    const filters: Record<string, any> = {
+      startTime: { $gte: currentDateTime.toDate() },
+    };
+
+    if (sport) filters.sport = sport;
+    if (venueId) filters.venue = venueId;
+
+    // Fetch and filter games
+    const games = await Game.find(filters)
+      .populate<{ admin: IUser }>("admin", "image username skill")
+      .populate<{ players: IUser[] }>("players", "image username skill")
+      .populate<{ venue: IVenue }>("venue", "name phone address")
+      .sort({ startTime: 1 }) // Sort by startTime (earliest first)
+      .skip(skip)
+      .limit(limit)
+      .lean() //use lean for better performance it give plain js object
       .exec();
 
-    const currentDate = moment();
+    // Total count for pagination metadata
+    const totalGames = await Game.countDocuments(filters);
+    const totalPages = Math.ceil(totalGames / limit);
 
-    // Filter games based on current date and time
-    const filteredGames = games.filter((game) => {
-      const gameDate = moment(game.date, "Do MMMM"); // Assuming date format is like "9th July"
-      const gameTime = game.time.split(" - ")[0]; // Get the start time of the game
-      const gameDateTime = moment(
-        `${gameDate.format("YYYY-MM-DD")} ${gameTime}`,
-        "YYYY-MM-DD h:mm A"
-      );
-
-      return gameDateTime.isAfter(currentDate);
-    });
-    // Format the filtered games for response
-    const formattedGames: IFormattedGame[] = filteredGames.map((game) => ({
+    // Format games for response
+    const formattedGames = games.map((game) => ({
       _id: game._id.toString(),
       sport: game.sport,
-      date: game.date,
-      time: game.time,
-      area: game.area,
-      players: game.players.map((player: IUser) => ({
-        _id: player._id.toString(),
-        imageUrl: player.image,
-        name: `${player.firstName} ${player.lastName}`,
-      })),
-      totalPlayers: game.totalPlayers,
-      queries: game.queries.map((query) => ({
-        question: query.question ?? null, // Ensuring question is either string, null, or undefined
-        answer: query.answer ?? null, // Ensuring answer is either string, null, or undefined
-      })),
+      startTime: game.startTime,
+      endTime: game.endTime,
+      venue: {
+        _id: game.venue._id.toString(),
+        name: game.venue.name,
+        phone: game.venue.phone,
+      },
+      players: (game.players as any[]).map((player) => {
+        if (!player._id || !player.username) {
+          throw new Error("Invalid populated player data");
+        }
+        return {
+          _id: player._id.toString(),
+          imageUrl: player.image,
+          username: player.username,
+        };
+      }),
+      maxPlayers: game.maxPlayers,
+      queries: game.chat.map((message) => ({
+        sender: message.sender.toString(),
+        content: message.content,
+        timestamp: message.timestamp,
+      })), // Updated to reflect chat structure
       requests: game.requests.map((req) => ({
         userId: req.userId.toString(),
         comment: req.comment ?? null,
       })),
       isBooked: game.isBooked,
-      adminName: `${game.admin.firstName} ${game.admin.lastName}`,
-      adminUrl: game.admin.image,
+      admin: {
+        _id: game.admin._id.toString(),
+        username: game.admin.username, // Updated to use username
+        imageUrl: game.admin.image,
+      },
       matchFull: game.matchFull,
       courtNumber: game.courtNumber,
     }));
 
-    // Send the response
-    res.json(formattedGames);
+    // Send paginated response
+    res.status(200).json({
+      success: true,
+      page,
+      limit,
+      totalGames,
+      totalPages,
+      games: formattedGames,
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Failed to fetch games" });
   }
 }
 
+//GET /games?latitude=27.7172&longitude=85.3240&radius=120000&page=1&limit=5
+
+export async function getNearestGames(
+  req: Request,
+  res: Response
+): Promise<void> {
+  try {
+    const { latitude, longitude, maxDistance = 20000 } = req.query;
+
+    if (!latitude || !longitude) {
+      res.status(400).json({
+        success: false,
+        message: "Latitude and longitude are required",
+      });
+      return;
+    }
+
+    const userLocation = [
+      parseFloat(longitude as string),
+      parseFloat(latitude as string),
+    ];
+
+    const games = await Game.find({
+      location: {
+        $near: {
+          $geometry: {
+            type: "Point",
+            coordinates: userLocation,
+          },
+          $maxDistance: parseInt(maxDistance as string),
+        },
+      },
+    })
+      .populate("venue", "name address phone")
+      .populate("admin", "username image skill")
+      .populate("players", "username image  skill");
+
+    res.status(200).json({ success: true, games });
+  } catch (error) {
+    console.error("Error fetching nearest games:", error);
+    res.status(500).json({ success: false, message: "Failed to fetch games" });
+  }
+}
+
 export async function getUpcoming(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.query.userId as string;
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const skip = (page - 1) * limit;
 
-    // Check if userId is provided
     if (!userId) {
-      res.status(400).json({ message: "User ID is required" });
+      res.status(400).json({ success: false, message: "User ID is required" });
       return;
     }
 
     // Fetch games where the user is either the admin or a player
     const games = await Game.find({
-      $or: [
-        { admin: userId }, // Check if the user is the admin
-        { players: userId }, // Check if the user is in the players list
-      ],
+      $or: [{ admin: userId }, { players: userId }],
     })
-      .populate<{ admin: IUser }>("admin", "firstName lastName image")
-      .populate<{ players: IUser[] }>("players", "image firstName lastName");
+      .populate("admin", "image username skill")
+      .populate("players", "image username skill")
+      .populate("venue", "name phone address")
+      .skip(skip)
+      .limit(limit)
+      .lean();
+
+    const totalGames = await Game.countDocuments({
+      $or: [{ admin: userId }, { players: userId }],
+    });
+    const totalPages = Math.ceil(totalGames / limit);
 
     // Format games with the necessary details
     const formattedGames = games.map((game) => ({
       _id: game._id.toString(),
       sport: game.sport,
-      date: game.date.toString(), // Ensure it's a string format if needed
-      time: game.time,
-      area: game.area,
-      players: (game.players as IUser[]).map((player) => ({
-        _id: player._id.toString(),
-        imageUrl: player.image,
-        name: `${player.firstName} ${player.lastName}`,
+      startTime: game.startTime,
+      endTime: game.endTime,
+      venue: game.venue,
+      players: (game.players as any[])
+        .filter((player) => player._id && player.username)
+        .map((player) => ({
+          _id: player._id.toString(),
+          imageUrl: player.image,
+          username: player.username,
+        })),
+      maxPlayers: game.maxPlayers,
+      queries: game.chat?.map((message) => ({
+        sender: message.sender.toString(),
+        content: message.content,
+        timestamp: message.timestamp,
       })),
-      totalPlayers: game.totalPlayers,
-      queries: game.queries.map((query) => ({
-        question: query.question || "", // Ensure question is always a string
-        answer: query.answer || "", // Ensure answer is always a string
-      })),
-      requests: game.requests.map((request) => ({
-        userId: request.userId.toString(),
-        comment: request.comment || "", // Ensure comment is a string if needed
+      requests: game.requests.map((req) => ({
+        userId: req.userId.toString(),
+        comment: req.comment ?? null,
       })),
       isBooked: game.isBooked,
-      courtNumber: game.courtNumber,
-      adminName: `${game.admin.firstName} ${game.admin.lastName}`,
-      adminUrl: game.admin.image,
-      isUserAdmin: game.admin._id.toString() === userId,
+      admin: game.admin,
       matchFull: game.matchFull,
+      courtNumber: game.courtNumber,
     }));
 
-    res.json(formattedGames); // Return the array of formatted games
+    res.status(200).json({
+      success: true,
+      page,
+      limit,
+      totalGames,
+      totalPages,
+      games: formattedGames,
+    });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Failed to fetch upcoming games" });
+    console.error("Error fetching upcoming games:", err);
+
+    if (err instanceof Error) {
+      res.status(500).json({
+        success: false,
+        message: "Failed to fetch upcoming games",
+        ...(process.env.NODE_ENV === "development" && { error: err.message }),
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        message: "Failed to fetch upcoming games",
+        ...(process.env.NODE_ENV === "development" && { error: String(err) }),
+      });
+    }
   }
 }
 
-export async function gameRequest(req: Request, res: Response): Promise<any> {
+export async function gameRequest(req: Request, res: Response): Promise<void> {
   try {
     const { userId, comment } = req.body; // Assuming the userId and comment are sent in the request body
     const { gameId } = req.params;
 
-    // Check if userId is provided
-    if (!userId) {
-      return res.status(400).json({ message: "UserId is required" });
+    // Validate userId and gameId
+    if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+      res.status(400).json({ message: "Invalid or missing userId" });
+      return;
     }
 
-    // Validate if userId is a valid ObjectId format
-    if (!mongoose.Types.ObjectId.isValid(userId)) {
-      return res.status(400).json({ message: "Invalid userId format" });
-    }
-
-    // Validate if gameId is valid
-    if (!mongoose.Types.ObjectId.isValid(gameId)) {
-      return res.status(400).json({ message: "Invalid gameId format" });
+    if (!gameId || !mongoose.Types.ObjectId.isValid(gameId)) {
+      res.status(400).json({ message: "Invalid or missing gameId" });
+      return;
     }
 
     // Find the game by ID
     const game = await Game.findById(gameId);
     if (!game) {
-      return res.status(404).json({ message: "Game not found" });
+      res.status(404).json({ message: "Game not found" });
+      return;
     }
 
     // Check if the user has already requested to join the game
-    const existingRequest = game.requests.find(
+    const requestExists = game.requests.some(
       (request) => request.userId.toString() === userId
     );
-    if (existingRequest) {
-      return res.status(400).json({ message: "Request already sent" });
+    if (requestExists) {
+      res.status(400).json({ message: "Request already sent" });
+      return;
     }
 
-    // Add the user's ID and comment (or empty string) to the requests array
+    // Add the user's ID and comment to the requests array
     game.requests.push({ userId, comment: comment || "" });
 
     // Save the updated game document
-    const updatedGame = await game.save();
+    await game.save();
 
-    res
-      .status(200)
-      .json({ message: "Request sent successfully", game: updatedGame });
+    res.status(200).json({
+      success: true,
+      message: "Request sent successfully",
+      request: { userId, comment: comment || "" },
+    });
   } catch (error) {
-    console.error("Error occurred while sending request:");
-    res
-      .status(500)
-      .json({ message: "An error occurred while processing your request" });
+    if (error instanceof Error) {
+      console.error("Error occurred while sending request:", error.message);
+      res.status(500).json({
+        success: false,
+        message: "An error occurred while processing your request",
+        ...(process.env.NODE_ENV === "development" && { error: error.message }),
+      });
+    } else {
+      console.error("Unknown error:", error);
+      res.status(500).json({
+        success: false,
+        message: "An unexpected error occurred",
+      });
+    }
   }
 }
-interface IGameRequest {
-  userId: IUserPopulate; // Ensure userId is of type IUserPopulate
-  comment: string;
-}
 
-interface IUserPopulate {
-  _id: mongoose.Types.ObjectId;
-  email: string;
-  firstName: string;
-  lastName: string;
-  image: string;
-  skill: string;
-  noOfGames: number;
-  playpals: mongoose.Types.ObjectId[];
-  sports: string[];
-}
-
-// Game interface
-export interface IGame extends Document {
-  sport: string;
-  area: string;
-  date: string;
-  time: string;
-  activityAccess: "public" | "private";
-  totalPlayers: number;
-  instruction?: string;
-  admin: mongoose.Types.ObjectId; // Referencing the User model
-  players: mongoose.Types.ObjectId[]; // Array of User references
-  queries: { question: string; answer: string }[];
-  requests: IGameRequest[]; // Array of requests, each with a userId reference
-  isBooked: boolean;
-  matchFull: boolean;
-  courtNumber?: string; // Optional, could be required depending on your app
+function isPopulatedUser(user: unknown): user is IUser {
+  return typeof user === "object" && user !== null && "username" in user;
 }
 
 export async function getRequests(req: Request, res: Response): Promise<void> {
@@ -234,8 +435,7 @@ export async function getRequests(req: Request, res: Response): Promise<void> {
     const game = await Game.findOne({ _id: gameId })
       .populate({
         path: "requests.userId",
-        select:
-          "email firstName lastName image skill noOfGames playpals sports",
+        select: "phoneNumber, username, image, skill noOfGames",
       })
       .exec();
 
@@ -247,123 +447,197 @@ export async function getRequests(req: Request, res: Response): Promise<void> {
     }
     console.log("Requests before filtering:", game.requests);
 
-    const gameWithType = game as unknown as IGame;
-
-    // Filter out requests with null userId before mapping
-    const validRequests = gameWithType.requests.filter(
-      (request) => request.userId !== null
-    );
-
-    console.log("Valid Requests:", validRequests);
-
     // Map through requests and extract relevant user info
-    const requestsWithUserInfo = validRequests.map((request) => ({
-      userId: request.userId._id, // Already populated, no need to cast
-      email: request.userId.email,
-      firstName: request.userId.firstName,
-      lastName: request.userId.lastName,
-      image: request.userId.image,
-      skill: request.userId.skill,
-      noOfGames: request.userId.noOfGames,
-      playpals: request.userId.playpals,
-      sports: request.userId.sports,
-      comment: request.comment,
-    }));
+    const requestsWithUserInfo = game.requests
+      .filter((request) => request.userId !== null)
+      .map((request) => {
+        if (isPopulatedUser(request.userId)) {
+          return {
+            userId: request.userId._id.toString(),
+            username: request.userId.username,
+            image: request.userId.image,
+            skill: request.userId.skill,
+            noOfGames: request.userId.noOfGames,
+            phoneNumber: request.userId.phoneNumber,
+            comment: request.comment,
+          };
+        } else {
+          throw new Error("UserId is not populated or invalid");
+        }
+      });
 
     res.json(requestsWithUserInfo);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Failed to fetch requests" });
+    // Log the error with more details
+    console.error("Error fetching game requests:", err);
+
+    // Build a generic error message
+    const genericMessage =
+      "An unexpected error occurred while processing your request";
+
+    // Check if the error is an instance of Error
+    if (err instanceof Error) {
+      res.status(500).json({
+        success: false,
+        message: genericMessage,
+        ...(process.env.NODE_ENV === "development" && { error: err.message }),
+      });
+    } else {
+      // Handle cases where the error is not an instance of Error (e.g., unknown types)
+      res.status(500).json({
+        success: false,
+        message: genericMessage,
+        ...(process.env.NODE_ENV === "development" && { error: String(err) }),
+      });
+    }
   }
 }
 
-export async function acceptRequest(req: Request, res: Response): Promise<any> {
+export async function acceptRequest(
+  req: Request,
+  res: Response
+): Promise<void> {
   const { gameId, userId } = req.body;
 
   try {
-    // Find the game and update in one operation
+    // Validate gameId and userId
+    if (!mongoose.Types.ObjectId.isValid(gameId)) {
+      res.status(400).json({ message: "Invalid gameId format" });
+      return;
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      res.status(400).json({ message: "Invalid userId format" });
+      return;
+    }
+
+    // Update the game: add user to players, remove from requests
     const updatedGame = await Game.findByIdAndUpdate(
       gameId,
       {
         $push: { players: userId }, // Add user to players array
-        $pull: { requests: { userId: userId } }, // Remove user from requests
+        $pull: { requests: { userId: userId } }, // Remove user from requests array
       },
       { new: true } // Return the updated game document
     ).exec();
 
+    // Check if the game exists
     if (!updatedGame) {
-      return res.status(404).json({ message: "Game not found" });
+      res.status(404).json({ message: "Game not found" });
+      return;
     }
 
+    // Respond with success
     res.status(200).json({
+      success: true,
       message: "Request accepted successfully",
       game: updatedGame,
     });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Server error" });
+    console.error("Error while accepting request:", error);
+    res.status(500).json({
+      success: false,
+      message: "An error occurred while accepting the request",
+      ...(process.env.NODE_ENV === "development" && {
+        error: (error as Error).message,
+      }),
+    });
   }
 }
 
-export async function gamePlayers(req: Request, res: Response): Promise<any> {
+export async function gamePlayers(req: Request, res: Response): Promise<void> {
   try {
     const { gameId } = req.params;
 
     // Validate gameId
     if (!mongoose.Types.ObjectId.isValid(gameId)) {
-      return res.status(400).json({ message: "Invalid game ID" });
+      res.status(400).json({
+        success: false,
+        message: "Invalid game ID",
+      });
+      return;
     }
 
-    // Fetch game and populate players with limited fields
+    // Fetch the game and populate players with limited fields
     const game = await Game.findById(gameId).populate({
       path: "players",
-      select: "email firstName lastName image skill noOfGames sports", // Select relevant fields
+      select: "phoneNumber, username, image, skill noOfGames", // Select relevant fields
     });
 
     if (!game) {
-      return res.status(404).json({ message: "Game not found" });
+      res.status(404).json({
+        success: false,
+        message: "Game not found",
+      });
+      return;
     }
 
     // Check if the game has players
-    if (!game.players.length) {
-      return res
-        .status(200)
-        .json({ message: "No players in this game", players: [] });
+    if (!game.players || !game.players.length) {
+      res.status(200).json({
+        success: true,
+        message: "No players in this game",
+        players: [],
+      });
+      return;
     }
 
-    res.status(200).json({ players: game.players });
+    // Return populated players
+    res.status(200).json({
+      success: true,
+      message: "Players fetched successfully",
+      players: game.players,
+    });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Failed to fetch players in the game" });
+    console.error("Error fetching players:", err);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch players in the game",
+      ...(process.env.NODE_ENV === "development" && {
+        error: (err as Error).message,
+      }),
+    });
   }
 }
 
 export async function toggleMatchfull(
   req: Request,
   res: Response
-): Promise<any> {
+): Promise<void> {
   try {
     const { gameId } = req.body;
 
-    // Use findByIdAndUpdate with $set to toggle the field
-    const game = await Game.findByIdAndUpdate(
-      gameId,
-      [
-        { $set: { matchFull: { $not: "$matchFull" } } }, // Toggle the field
-      ],
-      { new: true } // Return the updated document
-    );
-
-    if (!game) {
-      return res.status(404).json({ message: "Game not found" });
+    // Validate gameId
+    if (!mongoose.Types.ObjectId.isValid(gameId)) {
+      res.status(400).json({ message: "Invalid gameId format" });
+      return;
     }
 
-    res.json({
+    // Find the game and toggle the matchFull field
+    const game = await Game.findById(gameId);
+
+    if (!game) {
+      res.status(404).json({ message: "Game not found" });
+      return;
+    }
+
+    // Toggle the matchFull field
+    game.matchFull = !game.matchFull;
+
+    // Save the updated game
+    await game.save();
+
+    res.status(200).json({
       message: "Match full status updated",
       matchFull: game.matchFull,
     });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Failed to update match full status" });
+    console.error("Error updating match full status:", error);
+    res.status(500).json({
+      message: "Failed to update match full status",
+      ...(process.env.NODE_ENV === "development" && {
+        error: (error as Error).message,
+      }),
+    });
   }
 }

@@ -6,36 +6,43 @@ const gameSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
-    area: {
-      type: String,
+    startTime: {
+      type: Date,
       required: true,
     },
-    date: {
-      type: String,
+    endTime: {
+      type: Date,
       required: true,
     },
-    time: {
-      type: String,
-      required: true,
-    },
-    activityAccess: {
+    visibility: {
       type: String,
       enum: ["public", "private"],
       default: "public",
     },
-    totalPlayers: {
+    maxPlayers: {
       type: Number,
       required: true,
       min: 1,
-      max: 100,
+      max: 50,
     },
     instruction: {
       type: String,
+      maxLength: 600,
+      default: "",
     },
     admin: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
+    },
+    venue: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Venue",
+      required: true,
+    },
+    location: {
+      type: { type: String, enum: ["Point"], required: true }, // GeoJSON Point
+      coordinates: { type: [Number], required: true }, // [longitude, latitude]
     },
     players: [
       {
@@ -43,11 +50,22 @@ const gameSchema = new mongoose.Schema(
         ref: "User",
       },
     ],
-    queries: {
+    chat: {
       type: [
         {
-          question: String,
-          answer: String,
+          sender: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User",
+            required: true,
+          },
+          content: {
+            type: String,
+            required: true,
+          },
+          timestamp: {
+            type: Date,
+            default: Date.now,
+          },
         },
       ],
       default: [],
@@ -61,9 +79,18 @@ const gameSchema = new mongoose.Schema(
             required: true,
           },
           comment: String,
+          requestedAt: { type: Date, default: Date.now },
         },
       ],
       default: [],
+    },
+    status: {
+      type: String,
+      enum: ["active", "cancelled", "completed"],
+      default: "active",
+    },
+    cancellationReason: {
+      type: String,
     },
     isBooked: {
       type: Boolean,
@@ -80,6 +107,13 @@ const gameSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-gameSchema.index({ sport: 1, area: 1, date: 1 });
+// Middleware for matchFull
+gameSchema.pre("save", function (next) {
+  this.matchFull = this.players.length >= this.maxPlayers;
+  next();
+});
+gameSchema.index({ location: "2dsphere" });
+
+gameSchema.index({ sport: 1, area: 1, startTime: 1 });
 const Game = mongoose.model("Game", gameSchema);
 export default Game;

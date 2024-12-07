@@ -36,6 +36,7 @@ interface IBooking {
 }
 
 export interface IVenue extends Document {
+  _id: mongoose.Types.ObjectId;
   name: string;
   lat: number;
   lng: number;

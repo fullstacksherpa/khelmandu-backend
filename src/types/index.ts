@@ -39,12 +39,6 @@ export interface IUser extends Document {
 
 export type ISafeUser = Omit<IUser, "password" | "refreshToken">;
 
-export interface CustomMulterRequest extends Request {
-  files?: {
-    image?: Express.Multer.File[]; // Use the field name you defined in multer
-  };
-}
-
 export interface JwtAccessTokenPayload {
   _id: ObjectId; // User's MongoDB ObjectId
   email: string; // User's email
@@ -54,13 +48,6 @@ export interface JwtRefreshTokenPayload {
   _id: ObjectId; // User's MongoDB ObjectId
 }
 
-// Game Interface
-export interface IGame extends Document {
-  title: string; // Title of the game
-  date: Date; // Date of the game
-  requests: IGameRequest[]; // Array of requests for the game
-}
-
 // Custom Request interface with gameId in params for Express request handlers
 export interface CustomRequestWithGameId extends Request {
   params: {
@@ -68,68 +55,96 @@ export interface CustomRequestWithGameId extends Request {
   };
 }
 
-// Player Interface
+// Interface for Chat Messages
+export interface IChat {
+  sender: IUser | mongoose.Types.ObjectId; // Reference to the user or populated user object
+  content: string; // Message content
+  timestamp?: Date; // Timestamp for when the message was sent
+}
+
+// Interface for Game Requests
+export interface IGameRequest {
+  userId: IUser | mongoose.Types.ObjectId; // Reference to the user or populated user object
+  comment?: string; // Optional comment within the request
+  requestedAt?: Date; // Timestamp for when the request was made
+}
+
+// Interface for a Player
 export interface IPlayer {
   _id: string;
-  image: string; // Player's profile image URL
+  image: string; // URL to the player's profile image
   firstName: string;
   lastName: string;
 }
 
-// Query Interface for Game Queries
-export interface IQuery {
-  question: string;
-  answer?: string;
-}
-
-// Request Interface within Game
-export interface IGameRequest {
-  userId: IUser | Types.ObjectId; // Populated user or ObjectId reference
-  comment?: string; // Optional comment within the request
-}
-
-// Game Data Interface (Renamed to IGameData)
-export interface IGameData extends Document {
-  sport: string;
-  area: string;
-  date: string; // Date stored as a string in the format "9th July"
-  time: string; // Time format, e.g., "10:00 AM - 12:00 PM"
-  activityAccess?: string; // Default is "public"
-  totalPlayers: number;
-  instruction?: string;
-  admin: IUser | Types.ObjectId; // Reference to admin user
-  players: (IUser | Types.ObjectId)[]; // Array of players (User references or populated)
-  queries: IQuery[]; // Array of query objects
+// Main Game Interface (Mapped to Mongoose Schema)
+export interface IGame extends Document {
+  sport: string; // Name of the sport
+  venue: mongoose.Types.ObjectId; // Reference to Venue
+  location: {
+    type: string;
+    coordinates: [number, number]; // [longitude, latitude]
+  };
+  startTime: Date; // Game start time
+  endTime: Date; // Game end time
+  visibility: "public" | "private"; // Game visibility (default: "public")
+  maxPlayers: number; // Maximum number of players allowed
+  instruction?: string; // Optional game instructions
+  admin: IUser | mongoose.Types.ObjectId; // Reference to the admin user or populated user object
+  players: (IUser | mongoose.Types.ObjectId)[]; // Array of players (User references or populated)
+  chat: IChat[]; // Array of chat messages
   requests: IGameRequest[]; // Array of requests for the game
-  isBooked: boolean; // Boolean flag indicating if the game is booked
-  matchFull: boolean; // Boolean flag indicating if the game is full
-  courtNumber?: string;
+  status: "active" | "cancelled" | "completed"; // Game status
+  cancellationReason?: string; // Reason for cancellation (if applicable)
+  isBooked: boolean; // Whether the game is booked
+  matchFull: boolean; // Whether the match is full
+  courtNumber?: string; // Optional court number
+  createdAt?: Date; // Timestamp for when the game was created
+  updatedAt?: Date; // Timestamp for when the game was last updated
 }
 
-// Define the structure of the formatted game response
+// Interface for the Formatted Game Response
 export interface IFormattedGame {
   _id: string; // Unique ID of the game
   sport: string; // Name of the sport
-  date: string; // Game date (e.g., "9th July")
-  time: string; // Game time (e.g., "10:00 AM - 12:00 PM")
-  area: string; // Location of the game
+  venue: string; // Location of the game
+  date: string; // Formatted game date (e.g., "10th January 2024")
+  time: string; // Formatted game time (e.g., "6:00 AM - 8:00 AM")
   players: {
     _id: string; // Unique ID of the player
-    imageUrl: string; // URL to the player's image
+    imageUrl: string; // URL to the player's profile image
     name: string; // Full name of the player
-  }[]; // Array of players
+  }[]; // Array of player objects
   totalPlayers: number; // Total players allowed in the game
   queries: {
-    question: string | null | undefined;
-    answer: string | null | undefined;
+    question: string | null; // Question from chat (if applicable)
+    answer: string | null; // Answer from chat (if applicable)
   }[]; // Array of query objects
   requests: {
-    userId: string | null | undefined; // ID of the user making the request
-    comment?: string | null | undefined; // Optional comment from the user
+    userId: string; // ID of the user making the request
+    comment?: string; // Optional comment from the user
   }[]; // Array of request objects
   isBooked: boolean; // Whether the game is booked
-  adminName: string; // Admin's full name
-  adminUrl: string; // Admin's profile image URL
+  adminName: string; // Full name of the admin
+  adminUrl: string; // URL to the admin's profile image
   matchFull: boolean; // Whether the match is full
-  courtNumber?: string | null | undefined; // Optional court number
+  courtNumber?: string | null; // Optional court number
 }
+
+export interface IMessageSender {
+  _id: string; // Unique ID of the sender (user or admin)
+  username: string; // Username of the sender
+}
+
+export interface IMessage {
+  sender: IMessageSender; // Details of the message sender
+  content: string; // The message content
+  timestamp: string; // ISO string representing the timestamp of the message
+}
+
+export interface IChatPair {
+  userMessage: IMessage; // The message sent by the user
+  adminReply: IMessage; // The reply from the admin
+}
+
+export type IChatPairs = IChatPair[]; // Array of paired message
