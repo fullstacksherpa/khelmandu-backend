@@ -6,6 +6,7 @@ import authRoute from "@routes/auth.routes.js";
 import gameRoute from "@routes/game.routes.js";
 import venueRouter from "@routes/venue.routes.js";
 import { errorHandler } from "./middlewares/errorHandlerMiddleware";
+import bookingRoute from "@routes/booking.routes.js";
 
 const app = express();
 
@@ -30,6 +31,8 @@ app.use("/auth", authRoute);
 app.use("/game", gameRoute);
 
 app.use("/venue", venueRouter);
+
+app.use("/bookings", bookingRoute);
 
 // Use the centralized error-handling middleware
 app.use(errorHandler);

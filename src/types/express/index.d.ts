@@ -8,6 +8,7 @@ declare global {
       cleanBody?: any;
       body?: any;
       user?: any;
+      file?: Express.Multer.File;
       files?: {
         image?: Express.Multer.File[];
       };

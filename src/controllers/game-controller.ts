@@ -5,7 +5,8 @@ import moment from "moment";
 import mongoose from "mongoose";
 import { z } from "zod";
 import { ApiError } from "@src/utils/ApiError";
-import Venue, { IVenue } from "@src/models/venue.model";
+import Venue from "@src/models/venue.model";
+import { IVenue } from "@src/types/venueInterface";
 
 interface IPopulatedVenue {
   _id: string;
@@ -108,7 +109,7 @@ export async function createGame(req: Request, res: Response): Promise<void> {
       venue: venue?._id,
       location: {
         type: "Point",
-        coordinates: [venue.lng, venue.lat], // Assign venue's coordinates
+        coordinates: venue.location.coordinates, // Assign venue's coordinates
       },
       status: "active",
       isBooked: false,

@@ -112,6 +112,7 @@ gameSchema.pre("save", function (next) {
   this.matchFull = this.players.length >= this.maxPlayers;
   next();
 });
+
 gameSchema.index({ location: "2dsphere" });
 
 gameSchema.index({ sport: 1, area: 1, startTime: 1 });
