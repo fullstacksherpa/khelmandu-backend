@@ -23,7 +23,7 @@ export const sendEmail = async (
 
     // Send the email
     await resend.emails.send({
-      from: `Khelmandu <${fromEmail}>`,
+      from: fromEmail,
       to: [to],
       subject: subject,
       html: htmlContent,

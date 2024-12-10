@@ -11,6 +11,24 @@ import mongoose from "mongoose";
 import { uploadOnCloudinary } from "@src/utils/cloudinary";
 import { sendEmail } from "@src/utils/emailService";
 
+type RegisterUserBody = {
+  email: string;
+  password: string;
+  username: string;
+  phoneNumber: string;
+};
+
+type RegisterUserResponse = {
+  token: { accessToken: string; refreshToken: string };
+  user: {
+    userId: string;
+    email: string;
+    username: string;
+    phoneNumber: string;
+    image: string;
+  };
+};
+
 const generateAccessAndRefreshTokens = async (userId: ObjectId) => {
   try {
     const user = (await User.findById(userId)) as IUser;
@@ -35,7 +53,6 @@ const generateAccessAndRefreshTokens = async (userId: ObjectId) => {
 export async function registerUser(req: Request, res: Response): Promise<any> {
   try {
     const { email, password, username, phoneNumber } = req.body;
-    console.log("Request body:", req.body);
 
     // Validate input fields
     if (
@@ -87,11 +104,11 @@ export async function registerUser(req: Request, res: Response): Promise<any> {
       "Khelmandu | email verification Links",
       `
     <h4>Hi ${user.username},</h4>
-<p>We hope you're enjoying your experience with Khelmandu! We're thrilled to have you as part of our community. To ensure your account is secure and fully activated, please take a moment to verify your email address.</p>
+<p>We hope you will enjoy your experience with Khelmandu! We're thrilled to welcome you to be a part of our community. To ensure your account is secure and fully activated, please take a moment to verify your email address.</p>
 <p>Click the link below to verify your email:</p>
 <a href="${verificationLink}">Verify Email</a>
 <p>If you didn't request this, don't worry—just ignore this email, and your account will remain unchanged.</p>
-<p>Thank you for choosing [YourAppName]. We're here to help if you have any questions or need assistance.</p>
+<p>Thank you for choosing Khelmandu. We're here to help if you have any questions or need assistance.</p>
 <p>Best regards,</p>
 <p>Khelmandu Team</p>
   `
@@ -124,6 +141,9 @@ export async function registerUser(req: Request, res: Response): Promise<any> {
     );
   } catch (error) {
     console.error("Error registering user:", error);
+    if (error instanceof ApiError) {
+      return res.status(error.statusCode).json({ error: error.message });
+    }
     return res.status(500).json({ error: "Internal server error" });
   }
 }
@@ -187,7 +207,13 @@ export async function loginUser(req: Request, res: Response): Promise<any> {
         200,
         {
           token: { accessToken, refreshToken },
-          userId: user._id.toString(), // Use directly without creating a new object
+          user: {
+            userId: user._id.toString(),
+            email: user.email,
+            username: user.username,
+            phoneNumber: user.phoneNumber,
+            image: user.image,
+          },
         },
         "User logged in successfully"
       )
